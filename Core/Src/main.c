@@ -1,10 +1,10 @@
 //* USER CODE BEGIN Header */
 /**
-  ****************************************************************************
+  **************************************************************************
   * @file           : main.h
   * @brief          : Header for main.c file.
   *                   This file contains the common defines of the application.
-  ****************************************************************************
+  **************************************************************************
   * @attention
   *
   * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
@@ -15,7 +15,7 @@
   * the License. You may obtain a copy of the License at:
   *                             www.st.com/SLA0044
   *
-  ****************************************************************************
+  **************************************************************************
   */
 /* USER CODE END Header */
 
@@ -68,6 +68,7 @@ extern const unsigned char stlogo[];
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+static void fillSectorScanline(int idx, uint16_t fillColor);
 
 /* USER CODE BEGIN EFP */
 void LCD_demo (void);
@@ -210,48 +211,46 @@ void Error_Handler(void);
 /* USER CODE END Private defines */
 
 const uint16_t sectorColors[SECTOR_COUNT] = {
-    LCD_COLOR_RED, LCD_COLOR_GREEN, LCD_COLOR_BLUE, LCD_COLOR_CYAN,
-    LCD_COLOR_MAGENTA, LCD_COLOR_YELLOW, LCD_COLOR_ORANGE, LCD_COLOR_LIGHTBLUE
+	0xEC1D, 0x03E0, LCD_COLOR_GREEN, LCD_COLOR_BLUE, LCD_COLOR_CYAN,
+    LCD_COLOR_MAGENTA, LCD_COLOR_YELLOW, LCD_COLOR_WHITE
 };
 const uint16_t sectorHighlight[SECTOR_COUNT] = {
-    LCD_COLOR_LIGHTRED, LCD_COLOR_LIGHTGREEN, LCD_COLOR_LIGHTBLUE, LCD_COLOR_LIGHTCYAN,
-    LCD_COLOR_LIGHTMAGENTA, LCD_COLOR_LIGHTYELLOW, LCD_COLOR_YELLOW, LCD_COLOR_WHITE
+    LCD_COLOR_RED, LCD_COLOR_RED, LCD_COLOR_RED, LCD_COLOR_RED,
+    LCD_COLOR_RED, LCD_COLOR_RED, LCD_COLOR_RED, LCD_COLOR_RED
 };
 
 int centerX, centerY, radius;
 
-/* Rysuje jeden sektor koła fortuny */
-void drawSector(int idx, uint16_t color) {
+/* Draws one sector of the wheel of fortune */
+void drawSector(int idx, uint16_t color)
+{
     const int steps = 12;
     float angleStart = idx * (360.0f / SECTOR_COUNT);
-    float angleEnd = (idx + 1) * (360.0f / SECTOR_COUNT);
-
-    Point pts[steps + 2];  // bez wskaźników
-
+    float angleEnd   = (idx + 1) * (360.0f / SECTOR_COUNT);
+    fillSectorScanline(idx, color);
+    Point pts[steps + 2];
     pts[0].X = centerX;
     pts[0].Y = centerY;
-
     for (int i = 0; i <= steps; i++) {
         float angle = angleStart + (angleEnd - angleStart) * i / steps;
         float rad = angle * 3.14159f / 180.0f;
         pts[i + 1].X = centerX + (int)(radius * cosf(rad));
         pts[i + 1].Y = centerY + (int)(radius * sinf(rad));
     }
-
-    BSP_LCD_SetTextColor(color);
+    BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
     BSP_LCD_DrawPolygon(pts, steps + 2);
 }
 
-/* Rysuje pełne koło fortuny */
+/* Draws a full wheel of fortune */
 void drawWheel(void) {
     for (int i = 0; i < SECTOR_COUNT; i++) {
         drawSector(i, sectorColors[i]);
     }
 }
 
-/* Animacja obrotu */
+/* Spin animation */
 void spinWheel(void) {
-    int totalSteps = 40 + (rand() % 40);
+    int totalSteps = 8 + (rand() % 8);
     int prev = -1;
     int delay = 50;
 
@@ -270,7 +269,7 @@ void spinWheel(void) {
 }
 
 
-/* Konfiguracja zegara systemowego (podstawowa) */
+/* System clock configuration */
 void SystemClock_Config(void) {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
@@ -294,7 +293,7 @@ void SystemClock_Config(void) {
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-    if (BSP_JOY_GetState() == JOY_SEL)  // jeśli naciśnięto joystick
+    if (BSP_JOY_GetState() == JOY_SEL)
     {
         spinWheel();
     }
@@ -310,7 +309,82 @@ void Error_Handler(void) {
 	/* USER CODE END Error_Handler_Debug */
 }
 
-/* Główna funkcja */
+static void fillSectorScanline(int idx, uint16_t fillColor)
+{
+    float angleStart = idx * (360.0f / SECTOR_COUNT);
+    float angleEnd   = (idx + 1) * (360.0f / SECTOR_COUNT);
+    float r1 = angleStart * 3.14159f / 180.0f;
+    float r2 = angleEnd   * 3.14159f / 180.0f;
+    int x1 = centerX + (int)(radius * cosf(r1));
+    int y1 = centerY + (int)(radius * sinf(r1));
+    int x2 = centerX + (int)(radius * cosf(r2));
+    int y2 = centerY + (int)(radius * sinf(r2));
+    int yMin = centerY, yMax = centerY;
+    if (y1 < yMin) yMin = y1;
+    if (y2 < yMin) yMin = y2;
+    if (y1 > yMax) yMax = y1;
+    if (y2 > yMax) yMax = y2;
+    int H = BSP_LCD_GetYSize();
+    if (yMin < 0) yMin = 0;
+    if (yMax >= H) yMax = H - 1;
+    BSP_LCD_SetTextColor(fillColor);
+    const int arcSamples = 180;
+    for (int y = yMin; y <= yMax; y++)
+    {
+        int xHits[4];
+        int hits = 0;
+        if (y1 != centerY) {
+            if ((y >= centerY && y <= y1) || (y >= y1 && y <= centerY)) {
+                float t = (float)(y - centerY) / (float)(y1 - centerY);
+                int x = centerX + (int)((x1 - centerX) * t);
+                xHits[hits++] = x;
+            }
+        }
+        if (y2 != centerY) {
+            if ((y >= centerY && y <= y2) || (y >= y2 && y <= centerY)) {
+                float t = (float)(y - centerY) / (float)(y2 - centerY);
+                int x = centerX + (int)((x2 - centerX) * t);
+                xHits[hits++] = x;
+            }
+        }
+        int arcFound = 0;
+        int arcXMin =  32767;
+        int arcXMax = -32768;
+        for (int i = 0; i <= arcSamples; i++)
+        {
+            float a = angleStart + (angleEnd - angleStart) * (float)i / (float)arcSamples;
+            float rad = a * 3.14159f / 180.0f;
+            int xa = centerX + (int)(radius * cosf(rad));
+            int ya = centerY + (int)(radius * sinf(rad));
+
+            if (ya == y) {
+                if (xa < arcXMin) arcXMin = xa;
+                if (xa > arcXMax) arcXMax = xa;
+                arcFound = 1;
+            }
+        }
+        if (arcFound) {
+            xHits[hits++] = arcXMin;
+            xHits[hits++] = arcXMax;
+        }
+        if (hits < 2) continue;
+        int xL = xHits[0], xR = xHits[0];
+        for (int i = 1; i < hits; i++) {
+            if (xHits[i] < xL) xL = xHits[i];
+            if (xHits[i] > xR) xR = xHits[i];
+        }
+        int W = BSP_LCD_GetXSize();
+        if (xL < 0) xL = 0;
+        if (xR >= W) xR = W - 1;
+        if (xR >= xL) {
+            BSP_LCD_DrawHLine(xL, y, (uint16_t)(xR - xL + 1));
+        }
+    }
+}
+
+
+
+/* Main function */
 int main(void) {
     HAL_Init();
     SystemClock_Config();
@@ -334,7 +408,7 @@ int main(void) {
     	JOYState_TypeDef state = BSP_JOY_GetState();
     	if (state == JOY_SEL) {
     	    spinWheel();
-    	    HAL_Delay(200); // debounce
+    	    HAL_Delay(200);
     	}
     }
 }

@@ -204,9 +204,9 @@ void Error_Handler(void);
 #define USB_OverCurrent_Pin GPIO_PIN_1
 #define USB_OverCurrent_GPIO_Port GPIOE
 /* USER CODE BEGIN Private defines */
-#define PAUSE_STATUS     ((uint32_t)0x00) /* Audio Player in Pause Status */
-#define RESUME_STATUS    ((uint32_t)0x01) /* Audio Player in Resume Status */
-#define IDLE_STATUS      ((uint32_t)0x02) /* Audio Player in Idle Status */
+#define PAUSE_STATUS     ((uint32_t)0x00)
+#define RESUME_STATUS    ((uint32_t)0x01)
+#define IDLE_STATUS      ((uint32_t)0x02)
 #define SECTOR_COUNT 8
 /* USER CODE END Private defines */
 
@@ -220,6 +220,7 @@ const uint16_t sectorHighlight[SECTOR_COUNT] = {
 };
 
 int centerX, centerY, radius;
+static int lastSpinIdx = 0;
 
 /* Draws one sector of the wheel of fortune */
 void drawSector(int idx, uint16_t color)
@@ -255,7 +256,7 @@ void spinWheel(void) {
     int delay = 50;
 
     for (int step = 0; step < totalSteps; step++) {
-        int idx = step % SECTOR_COUNT;
+    	int idx = (lastSpinIdx + step) % SECTOR_COUNT;
 
         if (prev >= 0) {
             drawSector(prev, sectorColors[prev]);
@@ -263,9 +264,11 @@ void spinWheel(void) {
 
         drawSector(idx, sectorHighlight[idx]);
         HAL_Delay(delay);
-        if (delay < 500) delay += 5;
+        if (delay < 500) delay += 20;
         prev = idx;
     }
+    if (prev >= 0)
+    	lastSpinIdx = prev;
 }
 
 
@@ -291,18 +294,8 @@ void SystemClock_Config(void) {
     HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-    if (BSP_JOY_GetState() == JOY_SEL)
-    {
-        spinWheel();
-    }
-}
-
 void Error_Handler(void) {
 	/* USER CODE BEGIN Error_Handler_Debug */
-	// BSP_LED_On(LED_RED);
-	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
 	while (1) {
 	}
@@ -381,8 +374,6 @@ static void fillSectorScanline(int idx, uint16_t fillColor)
         }
     }
 }
-
-
 
 /* Main function */
 int main(void) {
